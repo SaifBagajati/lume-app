@@ -1,0 +1,263 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT & USER MODELS
+// ============================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Square POS Integration
+  squareLocationId         String?
+  squareAccessToken        String?   // Encrypted
+  squareRefreshToken       String?   // Encrypted
+  squareTokenExpiresAt     DateTime?
+  squareMerchantId         String?
+  squareIntegrationEnabled Boolean   @default(false)
+  lastSquareSyncAt         DateTime?
+  squareSyncStatus         String?   // IDLE, SYNCING, ERROR
+  squareSyncError          String?
+
+  // Relations
+  users            User[]
+  tables           RestaurantTable[]
+  menuCategories   MenuCategory[]
+  menuItems        MenuItem[]
+  orders           Order[]
+  payments         Payment[]
+  auditLogs        AuditLog[]
+
+  @@index([squareIntegrationEnabled])
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  name              String
+  password          String
+  role              String   // OWNER, MANAGER, STAFF
+  twoFactorEnabled  Boolean  @default(false)
+  twoFactorSecret   String?
+  emailVerified     Boolean  @default(false)
+  emailVerifiedAt   DateTime?
+  tenantId          String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Password Reset
+  passwordResetToken          String?
+  passwordResetTokenExpiresAt DateTime?
+
+  // Relations
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions    Session[]
+  auditLogs   AuditLog[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// MENU MODELS
+// ============================================
+
+model RestaurantTable {
+  id        String   @id @default(uuid())
+  number    String
+  qrCode    String   @unique
+  active    Boolean  @default(true)
+  tenantId  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@unique([tenantId, number])
+}
+
+model MenuCategory {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Square Integration
+  squareCategoryId      String?
+  squareCategoryVersion BigInt?
+  lastSyncedAt          DateTime?
+
+  // Relations
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  MenuItem[]
+
+  @@unique([tenantId, squareCategoryId])
+  @@index([tenantId, squareCategoryId])
+}
+
+model MenuItem {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  imageUrl    String?
+  available   Boolean  @default(true)
+  categoryId  String
+  posItemId   String?  // For POS integration
+  tenantId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Square Integration
+  squareItemId          String?
+  squareItemVersion     BigInt?
+  squareVariationId     String?
+  lastSyncedAt          DateTime?
+
+  // Relations
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category   MenuCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+  modifiers  MenuModifier[]
+
+  @@unique([tenantId, squareItemId])
+  @@index([tenantId, squareItemId])
+}
+
+model MenuModifier {
+  id       String  @id @default(uuid())
+  name     String
+  required Boolean @default(false)
+  itemId   String
+
+  // Square Integration
+  squareModifierGroupId      String?
+  squareModifierGroupVersion BigInt?
+  lastSyncedAt               DateTime?
+
+  // Relations
+  item    MenuItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  options ModifierOption[]
+}
+
+model ModifierOption {
+  id         String @id @default(uuid())
+  name       String
+  price      Float  @default(0)
+  modifierId String
+
+  // Square Integration
+  squareModifierId      String?
+  squareModifierVersion BigInt?
+  lastSyncedAt          DateTime?
+
+  // Relations
+  modifier MenuModifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// ORDER MODELS
+// ============================================
+
+model Order {
+  id               String    @id @default(uuid())
+  tableId          String
+  status           String    // OPEN, COMPLETED, CANCELLED (session state)
+  subtotal         Float
+  tax              Float
+  tip              Float     @default(0)
+  total            Float
+  sessionStartedAt DateTime  @default(now()) // When first item was added
+  sessionEndedAt   DateTime? // When order was completed/paid
+  splitCount       Int?      // Number of ways the bill was split (e.g., 4)
+  splitAmount      Float?    // Amount each person should pay when split
+  posOrderId       String?   // For POS integration
+  tenantId         String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  table    RestaurantTable @relation(fields: [tableId], references: [id])
+  items    OrderItem[]
+  payments Payment[]
+}
+
+model OrderItem {
+  id       String  @id @default(uuid())
+  orderId  String
+  itemId   String
+  quantity Int
+  price    Float
+  notes    String?
+  status   String  @default("PENDING") // PENDING, PREPARING, READY, SERVED (kitchen workflow state)
+
+  // Relations
+  order Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  item  MenuItem @relation(fields: [itemId], references: [id])
+}
+
+// ============================================
+// PAYMENT MODELS
+// ============================================
+
+model Payment {
+  id               String   @id @default(uuid())
+  orderId          String
+  amount           Float
+  method           String   // CARD, APPLE_PAY, GOOGLE_PAY
+  status           String   // PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED
+  transactionId    String?  // Payment provider transaction ID
+  tenantId         String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String
+  userId    String?
+  tenantId  String
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
