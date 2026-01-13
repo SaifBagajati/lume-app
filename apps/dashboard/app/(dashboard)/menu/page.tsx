@@ -13,13 +13,18 @@ export default async function MenuPage() {
       squareIntegrationEnabled: true,
       squareLocationId: true,
       lastSquareSyncAt: true,
+      toastIntegrationEnabled: true,
+      toastRestaurantGuid: true,
+      lastToastSyncAt: true,
     },
   });
 
-  const hasActiveIntegration = tenant?.squareIntegrationEnabled && tenant?.squareLocationId;
+  const hasSquareIntegration = tenant?.squareIntegrationEnabled && tenant?.squareLocationId;
+  const hasToastIntegration = tenant?.toastIntegrationEnabled && tenant?.toastRestaurantGuid;
+  const hasActiveIntegration = hasSquareIntegration || hasToastIntegration;
 
   // Determine which POS is connected
-  const connectedPOS = hasActiveIntegration ? "Square" : null;
+  const connectedPOS = hasSquareIntegration ? "Square" : hasToastIntegration ? "Toast" : null;
 
   // Only fetch menu if there's an active integration
   let categories: any[] = [];

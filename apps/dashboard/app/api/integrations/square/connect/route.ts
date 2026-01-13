@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireTenantContext } from '@lume-app/shared';
+import { requireTenantContext, prisma } from '@lume-app/shared';
 import { randomBytes } from 'crypto';
 
 // Force this route to use Node.js runtime (not Edge)
@@ -12,6 +12,29 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   try {
     const context = await requireTenantContext();
+
+    // Check if another POS integration is already enabled
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: context.tenantId },
+      select: {
+        squareIntegrationEnabled: true,
+        toastIntegrationEnabled: true,
+      },
+    });
+
+    if (tenant?.toastIntegrationEnabled) {
+      return NextResponse.json(
+        { error: 'Please disconnect Toast before connecting Square. Only one POS integration can be active at a time.' },
+        { status: 400 }
+      );
+    }
+
+    if (tenant?.squareIntegrationEnabled) {
+      return NextResponse.json(
+        { error: 'Square is already connected' },
+        { status: 400 }
+      );
+    }
 
     // Generate state for CSRF protection
     const state = randomBytes(32).toString('hex');

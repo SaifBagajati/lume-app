@@ -229,6 +229,6 @@ AUTH_SECRET="your-secret-key-change-in-production"
 - [ ] Adjust payment flow to include splitting the bill, and tip options that can be configured in the settings page. Defaults are 18%, 20%, and 25%
 - [ ] Create landing page or marketing website where a potential customer can see features and benefits, and can click on the top right to either sign up or login
 - [ ] Create a sign up flow that let's an owner create an account (or log in with Google), connect to their POS, set number of tables and automatically generate those in their settings and tables pages
-- [ ] Add integration to Toast
+- [x] Add integration to Toast
 - [ ] Add integration to Clover
-- [ ] Add integration to Touchbistro
+- [ ] Add integration to Lightspeed

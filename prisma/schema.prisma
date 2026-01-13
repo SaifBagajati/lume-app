@@ -32,6 +32,17 @@ model Tenant {
   squareSyncStatus         String?   // IDLE, SYNCING, ERROR
   squareSyncError          String?
 
+  // Toast POS Integration
+  toastRestaurantGuid      String?
+  toastAccessToken         String?   // Encrypted
+  toastClientId            String?
+  toastClientSecret        String?   // Encrypted
+  toastTokenExpiresAt      DateTime?
+  toastIntegrationEnabled  Boolean   @default(false)
+  lastToastSyncAt          DateTime?
+  toastSyncStatus          String?   // IDLE, SYNCING, ERROR
+  toastSyncError           String?
+
   // Relations
   users            User[]
   tables           RestaurantTable[]
@@ -42,6 +53,7 @@ model Tenant {
   auditLogs        AuditLog[]
 
   @@index([squareIntegrationEnabled])
+  @@index([toastIntegrationEnabled])
 }
 
 model User {
@@ -113,12 +125,18 @@ model MenuCategory {
   squareCategoryVersion BigInt?
   lastSyncedAt          DateTime?
 
+  // Toast Integration
+  toastMenuGroupId String?
+  toastVersion     String?
+
   // Relations
   tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items  MenuItem[]
 
   @@unique([tenantId, squareCategoryId])
+  @@unique([tenantId, toastMenuGroupId])
   @@index([tenantId, squareCategoryId])
+  @@index([tenantId, toastMenuGroupId])
 }
 
 model MenuItem {
@@ -140,6 +158,10 @@ model MenuItem {
   squareVariationId     String?
   lastSyncedAt          DateTime?
 
+  // Toast Integration
+  toastMenuItemId String?
+  toastVersion    String?
+
   // Relations
   tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   category   MenuCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -147,7 +169,9 @@ model MenuItem {
   modifiers  MenuModifier[]
 
   @@unique([tenantId, squareItemId])
+  @@unique([tenantId, toastMenuItemId])
   @@index([tenantId, squareItemId])
+  @@index([tenantId, toastMenuItemId])
 }
 
 model MenuModifier {
@@ -160,6 +184,10 @@ model MenuModifier {
   squareModifierGroupId      String?
   squareModifierGroupVersion BigInt?
   lastSyncedAt               DateTime?
+
+  // Toast Integration
+  toastOptionGroupId String?
+  toastVersion       String?
 
   // Relations
   item    MenuItem         @relation(fields: [itemId], references: [id], onDelete: Cascade)
@@ -176,6 +204,10 @@ model ModifierOption {
   squareModifierId      String?
   squareModifierVersion BigInt?
   lastSyncedAt          DateTime?
+
+  // Toast Integration
+  toastModifierId String?
+  toastVersion    String?
 
   // Relations
   modifier MenuModifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)

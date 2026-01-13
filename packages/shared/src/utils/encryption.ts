@@ -7,16 +7,17 @@ const AUTH_TAG_LENGTH = 16;
 /**
  * Get encryption key from environment variable
  * Must be exactly 32 characters for AES-256
+ * Supports both legacy SQUARE_ENCRYPTION_KEY and new POS_ENCRYPTION_KEY
  */
 function getEncryptionKey(): string {
-  const key = process.env.SQUARE_ENCRYPTION_KEY;
+  const key = process.env.POS_ENCRYPTION_KEY || process.env.SQUARE_ENCRYPTION_KEY;
 
   if (!key) {
-    throw new Error('SQUARE_ENCRYPTION_KEY environment variable is not set');
+    throw new Error('POS_ENCRYPTION_KEY environment variable is not set');
   }
 
   if (key.length !== 32) {
-    throw new Error('SQUARE_ENCRYPTION_KEY must be exactly 32 characters');
+    throw new Error('POS_ENCRYPTION_KEY must be exactly 32 characters');
   }
 
   return key;
