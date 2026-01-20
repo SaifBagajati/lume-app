@@ -57,7 +57,7 @@ export function POSIntegration({
   const router = useRouter();
   const [squareStatus, setSquareStatus] = useState<SquareStatus | null>(null);
   const [toastStatus, setToastStatus] = useState<ToastStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -123,7 +123,7 @@ export function POSIntegration({
   };
 
   const handleConnectSquare = async () => {
-    setIsLoading(true);
+    setLoadingAction('square-connect');
     setMessage(null);
 
     try {
@@ -137,11 +137,11 @@ export function POSIntegration({
           type: "error",
           text: data.error || "Failed to initiate Square connection",
         });
-        setIsLoading(false);
+        setLoadingAction(null);
       }
     } catch (error) {
       setMessage({ type: "error", text: "An error occurred. Please try again." });
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -154,7 +154,7 @@ export function POSIntegration({
       return;
     }
 
-    setIsLoading(true);
+    setLoadingAction('square-disconnect');
     setMessage(null);
 
     try {
@@ -181,12 +181,12 @@ export function POSIntegration({
     } catch (error) {
       setMessage({ type: "error", text: "An error occurred. Please try again." });
     } finally {
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
   const handleSyncSquare = async () => {
-    setIsLoading(true);
+    setLoadingAction('square-sync');
     setMessage(null);
 
     try {
@@ -212,7 +212,7 @@ export function POSIntegration({
     } catch (error) {
       setMessage({ type: "error", text: "An error occurred. Please try again." });
     } finally {
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -228,7 +228,7 @@ export function POSIntegration({
       return;
     }
 
-    setIsLoading(true);
+    setLoadingAction('toast-connect');
     setMessage(null);
 
     try {
@@ -258,7 +258,7 @@ export function POSIntegration({
     } catch (error) {
       setMessage({ type: "error", text: "An error occurred. Please try again." });
     } finally {
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -271,7 +271,7 @@ export function POSIntegration({
       return;
     }
 
-    setIsLoading(true);
+    setLoadingAction('toast-disconnect');
     setMessage(null);
 
     try {
@@ -298,12 +298,12 @@ export function POSIntegration({
     } catch (error) {
       setMessage({ type: "error", text: "An error occurred. Please try again." });
     } finally {
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
   const handleSyncToast = async () => {
-    setIsLoading(true);
+    setLoadingAction('toast-sync');
     setMessage(null);
 
     try {
@@ -329,7 +329,7 @@ export function POSIntegration({
     } catch (error) {
       setMessage({ type: "error", text: "An error occurred. Please try again." });
     } finally {
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -519,17 +519,17 @@ export function POSIntegration({
               <div className="flex space-x-2">
                 <button
                   onClick={handleSyncSquare}
-                  disabled={isLoading || squareStatus.syncStatus === "SYNCING"}
+                  disabled={loadingAction === 'square-sync' || squareStatus.syncStatus === "SYNCING"}
                   className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Sync Now
+                  {loadingAction === 'square-sync' ? 'Syncing...' : 'Sync Now'}
                 </button>
                 <button
                   onClick={handleDisconnectSquare}
-                  disabled={isLoading}
+                  disabled={loadingAction === 'square-disconnect'}
                   className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Disconnect
+                  {loadingAction === 'square-disconnect' ? 'Disconnecting...' : 'Disconnect'}
                 </button>
               </div>
             )}
@@ -581,17 +581,17 @@ export function POSIntegration({
               <div className="flex space-x-2">
                 <button
                   onClick={handleSyncToast}
-                  disabled={isLoading || toastStatus.syncStatus === "SYNCING"}
+                  disabled={loadingAction === 'toast-sync' || toastStatus.syncStatus === "SYNCING"}
                   className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Sync Now
+                  {loadingAction === 'toast-sync' ? 'Syncing...' : 'Sync Now'}
                 </button>
                 <button
                   onClick={handleDisconnectToast}
-                  disabled={isLoading}
+                  disabled={loadingAction === 'toast-disconnect'}
                   className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Disconnect
+                  {loadingAction === 'toast-disconnect' ? 'Disconnecting...' : 'Disconnect'}
                 </button>
               </div>
             )}
@@ -682,10 +682,10 @@ export function POSIntegration({
                     {status === "available" && connectHandler && (
                       <button
                         onClick={connectHandler}
-                        disabled={isLoading}
+                        disabled={loadingAction === (provider.name === "Square" ? 'square-connect' : provider.name === "Toast POS" ? 'toast-connect' : null)}
                         className="text-xs bg-orange-500 text-white px-3 py-1 rounded-full hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        {isLoading ? "Connecting..." : "Connect"}
+                        {loadingAction === (provider.name === "Square" ? 'square-connect' : provider.name === "Toast POS" ? 'toast-connect' : null) ? "Connecting..." : "Connect"}
                       </button>
                     )}
                     {status === "blocked" && (
@@ -791,17 +791,17 @@ export function POSIntegration({
             <div className="flex justify-end space-x-3 mt-6">
               <button
                 onClick={() => setShowToastModal(false)}
-                disabled={isLoading}
+                disabled={loadingAction === 'toast-connect'}
                 className="px-4 py-2 text-sm text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmitToastCredentials}
-                disabled={isLoading}
+                disabled={loadingAction === 'toast-connect'}
                 className="px-4 py-2 text-sm text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors"
               >
-                {isLoading ? "Connecting..." : "Connect"}
+                {loadingAction === 'toast-connect' ? "Connecting..." : "Connect"}
               </button>
             </div>
           </div>
