@@ -1,0 +1,15 @@
+# Bun configuration for Lume App
+# https://bun.sh/docs/runtime/configuration
+
+[test]
+# Coverage settings
+coverage = false  # Enable with --coverage flag
+coverageDir = "./coverage"
+
+# Test patterns
+# Files matching these patterns will be included in test runs
+# testPattern = ["**/*.test.ts", "**/*.test.tsx"]
+
+[install]
+# Use exact versions for reproducible builds
+exact = true
