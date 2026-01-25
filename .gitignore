@@ -50,4 +50,11 @@ prisma/migrations
 # OS
 Thumbs.db
 
+# Downloaded installers/binaries
+*.deb
+*.tar.gz
+*.dmg
+*.exe
+*.msi
+
 /generated/prisma
