@@ -11,65 +11,65 @@ Lume is a multi-tenant SaaS platform for Canadian casual dining restaurants feat
 ### Setup
 ```bash
 # Install all dependencies
-npm install
+bun install
 
 # Generate Prisma client (required after schema changes)
-npx prisma generate
+bunx prisma generate
 
 # Run database migrations
-npx prisma migrate dev
+bunx prisma migrate dev
 
 # Seed database
-npm run db:seed
+bun run db:seed
 ```
 
 ### Running the Apps
 ```bash
 # Run all apps concurrently
-npm run dev
+bun run dev
 
 # Run individual apps
-cd apps/customer && npm run dev   # Port 3000 - Customer ordering app
-cd apps/dashboard && npm run dev  # Port 3001 - Restaurant dashboard
+cd apps/customer && bun run dev   # Port 3000 - Customer ordering app
+cd apps/dashboard && bun run dev  # Port 3001 - Restaurant dashboard
 
 # Build all apps
-npm run build
+bun run build
 
 # Lint all packages
-npm run lint
+bun run lint
 
 # Format code
-npm run format
+bun run format
 ```
 
 ### Database Commands
 ```bash
 # Open Prisma Studio (database GUI)
-npx prisma studio
+bunx prisma studio
 
 # Create a new migration
-npx prisma migrate dev --name your_migration_name
+bunx prisma migrate dev --name your_migration_name
 
 # Reset database (WARNING: deletes all data)
-npx prisma migrate reset
+bunx prisma migrate reset
 
 # Generate Prisma client after schema changes
-npx prisma generate
+bunx prisma generate
 ```
 
 ### Monorepo Commands
 ```bash
 # Clean all build artifacts and node_modules
-npm run clean
+bun run clean
 
 # Run tests across all packages
-npm run test
+bun test
 ```
 
 ## Architecture
 
 ### Monorepo Structure
-This is an npm workspaces + Turbo monorepo:
+This is a Bun workspaces + Turbo monorepo:
 - **apps/customer**: Customer-facing QR ordering Next.js app (port 3000)
 - **apps/dashboard**: Restaurant management Next.js dashboard (port 3001)
 - **packages/shared**: Shared code including Prisma client, Auth.js config, types, and utilities
@@ -175,8 +175,8 @@ Located at `packages/shared/`, this package is imported by both apps using `@lum
 
 ### When making database schema changes:
 1. Edit `prisma/schema.prisma`
-2. Run `npx prisma migrate dev --name descriptive_name`
-3. Run `npx prisma generate` (updates TypeScript types)
+2. Run `bunx prisma migrate dev --name descriptive_name`
+3. Run `bunx prisma generate` (updates TypeScript types)
 4. Restart dev servers to pick up new types
 
 ### When adding new API routes requiring authentication:
@@ -207,7 +207,7 @@ AUTH_SECRET="your-secret-key-change-in-production"
 
 ## Known Issues
 
-- **Seed script**: `prisma/seed.ts` may have issues with Prisma client initialization. Use Prisma Studio (`npx prisma studio`) to manually create test data if needed.
+- **Seed script**: `prisma/seed.ts` may have issues with Prisma client initialization. Use Prisma Studio (`bunx prisma studio`) to manually create test data if needed.
 
 ## Tech Stack Reference
 
@@ -217,7 +217,7 @@ AUTH_SECRET="your-secret-key-change-in-production"
 - **ORM**: Prisma 6.19
 - **Auth**: Auth.js v5 (next-auth@5.0.0-beta.30)
 - **Styling**: Tailwind CSS
-- **Monorepo**: npm workspaces + Turbo
+- **Monorepo**: Bun workspaces + Turbo
 - **2FA**: otplib
 - **QR Codes**: qrcode package
 
