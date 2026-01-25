@@ -1,9 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
-import {
-  createMockRequest,
-  createTenantHeaders,
-  createMockTable,
-} from '../utils/testHelpers';
+import { describe, test, expect, beforeEach, beforeAll, mock } from 'bun:test';
 import {
   createMockPrisma,
   resetMockPrisma,
@@ -12,18 +7,59 @@ import {
 // Create mock prisma before mocking the module
 const mockPrisma = createMockPrisma();
 
-// Mock the @lume-app/shared module
-mock.module('@lume-app/shared', () => ({
-  prisma: mockPrisma,
+// Mock modules BEFORE any dynamic imports
+mock.module('next/headers', () => ({
+  headers: async () => ({
+    get: (name: string) => null,
+  }),
+  cookies: async () => ({
+    get: (name: string) => null,
+  }),
 }));
 
-// Import after mocking
-import { GET, PATCH, DELETE } from '../../app/api/tables/[id]/route';
+mock.module('next-auth', () => ({
+  default: () => ({}),
+}));
+
+mock.module('@lume-app/shared', () => ({
+  prisma: mockPrisma,
+  auth: async () => null,
+  getTenantContext: async () => null,
+  requireTenantContext: async () => {
+    throw new Error('Unauthorized');
+  },
+}));
+
+// Module references - populated in beforeAll
+let GET: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+let PATCH: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+let DELETE: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response>;
+let createMockRequest: (options?: {
+  method?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+}) => Request;
+let createTenantHeaders: (tenantId: string, userId: string) => Record<string, string>;
+let createMockTable: (overrides?: Record<string, unknown>) => Record<string, unknown>;
 
 // Helper to create params object as Next.js 15 expects
 const createParams = (id: string) => ({ params: Promise.resolve({ id }) });
 
 describe('Tables API - /api/tables/[id]', () => {
+  beforeAll(async () => {
+    // Dynamic imports after mocks are set up
+    const routeModule = await import('../../app/api/tables/[id]/route');
+    GET = routeModule.GET;
+    PATCH = routeModule.PATCH;
+    DELETE = routeModule.DELETE;
+
+    const helpersModule = await import('../utils/testHelpers');
+    createMockRequest = helpersModule.createMockRequest;
+    createTenantHeaders = helpersModule.createTenantHeaders;
+    createMockTable = helpersModule.createMockTable;
+  });
+
   beforeEach(() => {
     resetMockPrisma(mockPrisma);
   });

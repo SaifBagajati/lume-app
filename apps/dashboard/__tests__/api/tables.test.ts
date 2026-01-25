@@ -1,9 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
-import {
-  createMockRequest,
-  createTenantHeaders,
-  createMockTable,
-} from '../utils/testHelpers';
+import { describe, test, expect, beforeEach, beforeAll, mock } from 'bun:test';
 import {
   createMockPrisma,
   resetMockPrisma,
@@ -13,7 +8,7 @@ import {
 // Create mock prisma before mocking the module
 const mockPrisma = createMockPrisma();
 
-// Mock next/headers before any imports that might use it
+// Mock modules BEFORE any dynamic imports
 mock.module('next/headers', () => ({
   headers: async () => ({
     get: (name: string) => null,
@@ -23,16 +18,10 @@ mock.module('next/headers', () => ({
   }),
 }));
 
-// Mock next-auth to prevent import issues
 mock.module('next-auth', () => ({
   default: () => ({}),
 }));
 
-mock.module('../../../packages/shared/src/auth', () => ({
-  auth: async () => null,
-}));
-
-// Mock the @lume-app/shared module with all needed exports
 mock.module('@lume-app/shared', () => ({
   prisma: mockPrisma,
   auth: async () => null,
@@ -42,10 +31,31 @@ mock.module('@lume-app/shared', () => ({
   },
 }));
 
-// Import after mocking
-import { GET, POST } from '../../app/api/tables/route';
+// Module references - populated in beforeAll
+let GET: (request: Request) => Promise<Response>;
+let POST: (request: Request) => Promise<Response>;
+let createMockRequest: (options?: {
+  method?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+}) => Request;
+let createTenantHeaders: (tenantId: string, userId: string) => Record<string, string>;
+let createMockTable: (overrides?: Record<string, unknown>) => Record<string, unknown>;
 
 describe('Tables API - /api/tables', () => {
+  beforeAll(async () => {
+    // Dynamic imports after mocks are set up
+    const routeModule = await import('../../app/api/tables/route');
+    GET = routeModule.GET;
+    POST = routeModule.POST;
+
+    const helpersModule = await import('../utils/testHelpers');
+    createMockRequest = helpersModule.createMockRequest;
+    createTenantHeaders = helpersModule.createTenantHeaders;
+    createMockTable = helpersModule.createMockTable;
+  });
+
   beforeEach(() => {
     resetMockPrisma(mockPrisma);
   });

@@ -1,9 +1,4 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test';
-import {
-  createMockRequest,
-  createTenantHeaders,
-  createMockUser,
-} from '../utils/testHelpers';
+import { describe, test, expect, beforeEach, beforeAll, mock } from 'bun:test';
 import {
   createMockPrisma,
   resetMockPrisma,
@@ -22,7 +17,20 @@ let mockTenantContext = {
   userRole: 'OWNER',
 };
 
-// Mock the @lume-app/shared module
+// Mock modules BEFORE any dynamic imports
+mock.module('next/headers', () => ({
+  headers: async () => ({
+    get: (name: string) => null,
+  }),
+  cookies: async () => ({
+    get: (name: string) => null,
+  }),
+}));
+
+mock.module('next-auth', () => ({
+  default: () => ({}),
+}));
+
 mock.module('@lume-app/shared', () => ({
   prisma: mockPrisma,
   requireTenantContext: async () => {
@@ -33,10 +41,29 @@ mock.module('@lume-app/shared', () => ({
   },
 }));
 
-// Import after mocking
-import { POST } from '../../app/api/settings/password/route';
+// Module references - populated in beforeAll
+let POST: (request: Request) => Promise<Response>;
+let createMockRequest: (options?: {
+  method?: string;
+  url?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+}) => Request;
+let createTenantHeaders: (tenantId: string, userId: string) => Record<string, string>;
+let createMockUser: (overrides?: Record<string, unknown>) => Record<string, unknown>;
 
 describe('Settings Password API - /api/settings/password', () => {
+  beforeAll(async () => {
+    // Dynamic imports after mocks are set up
+    const routeModule = await import('../../app/api/settings/password/route');
+    POST = routeModule.POST;
+
+    const helpersModule = await import('../utils/testHelpers');
+    createMockRequest = helpersModule.createMockRequest;
+    createTenantHeaders = helpersModule.createTenantHeaders;
+    createMockUser = helpersModule.createMockUser;
+  });
+
   beforeEach(async () => {
     resetMockPrisma(mockPrisma);
     shouldThrowUnauthorized = false;
