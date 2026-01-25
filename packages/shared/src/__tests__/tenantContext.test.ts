@@ -1,6 +1,6 @@
-import { describe, test, expect } from 'bun:test';
+import { describe, test, expect, mock, beforeEach, beforeAll } from 'bun:test';
 
-// The TenantContext interface from ../utils/tenantContext.ts
+// Define the TenantContext interface for typing
 interface TenantContext {
   tenantId: string;
   tenantSlug: string;
@@ -8,19 +8,43 @@ interface TenantContext {
   userRole: string;
 }
 
-// The hasRole function from ../utils/tenantContext.ts
-// We duplicate it here to test without importing the module that has Next.js dependencies.
-// In production, this function is used from the actual module.
-function hasRole(context: TenantContext, allowedRoles: string[]): boolean {
-  return allowedRoles.includes(context.userRole);
-}
+// Mock data
+let mockHeadersData: Record<string, string | null> = {};
+let mockSessionData: { user?: Record<string, string> } | null = null;
 
-// Note: getTenantContext, requireTenantContext, and requireRole depend on
-// Next.js headers() and auth() which require the full Next.js runtime.
-// These functions should be tested in integration tests with API routes.
-// Here we test the pure hasRole function that doesn't have external dependencies.
+// Mock modules before importing
+mock.module('next/headers', () => ({
+  headers: async () => ({
+    get: (name: string) => mockHeadersData[name] ?? null,
+  }),
+}));
+
+mock.module('../auth', () => ({
+  auth: async () => mockSessionData,
+}));
+
+// Module references - populated in beforeAll
+let hasRole: (context: TenantContext, allowedRoles: string[]) => boolean;
+let getTenantContext: () => Promise<TenantContext | null>;
+let requireTenantContext: () => Promise<TenantContext>;
+let requireRole: (allowedRoles: string[]) => Promise<TenantContext>;
 
 describe('Tenant Context Utilities', () => {
+  beforeAll(async () => {
+    // Dynamic import after mocks are set up
+    const module = await import('../utils/tenantContext');
+    hasRole = module.hasRole;
+    getTenantContext = module.getTenantContext;
+    requireTenantContext = module.requireTenantContext;
+    requireRole = module.requireRole;
+  });
+
+  beforeEach(() => {
+    // Reset mocks before each test
+    mockHeadersData = {};
+    mockSessionData = null;
+  });
+
   describe('hasRole', () => {
     const createContext = (role: string): TenantContext => ({
       tenantId: 'tenant-123',
@@ -62,116 +86,189 @@ describe('Tenant Context Utilities', () => {
       expect(hasRole(context, [])).toBe(false);
     });
 
-    test('should handle STAFF role correctly', () => {
-      const context = createContext('STAFF');
-
-      expect(hasRole(context, ['STAFF'])).toBe(true);
-      expect(hasRole(context, ['OWNER', 'MANAGER', 'STAFF'])).toBe(true);
-      expect(hasRole(context, ['OWNER', 'MANAGER'])).toBe(false);
+    test('should handle all standard roles correctly', () => {
+      expect(hasRole(createContext('OWNER'), ['OWNER'])).toBe(true);
+      expect(hasRole(createContext('MANAGER'), ['MANAGER'])).toBe(true);
+      expect(hasRole(createContext('STAFF'), ['STAFF'])).toBe(true);
     });
 
-    test('should handle MANAGER role correctly', () => {
-      const context = createContext('MANAGER');
+    test('should handle role hierarchy checks', () => {
+      const ownerOnly = ['OWNER'];
+      const managerAndAbove = ['OWNER', 'MANAGER'];
+      const allStaff = ['OWNER', 'MANAGER', 'STAFF'];
 
-      expect(hasRole(context, ['MANAGER'])).toBe(true);
-      expect(hasRole(context, ['OWNER', 'MANAGER'])).toBe(true);
-      expect(hasRole(context, ['OWNER'])).toBe(false);
-    });
+      // OWNER has access to everything
+      expect(hasRole(createContext('OWNER'), ownerOnly)).toBe(true);
+      expect(hasRole(createContext('OWNER'), managerAndAbove)).toBe(true);
+      expect(hasRole(createContext('OWNER'), allStaff)).toBe(true);
 
-    test('should handle OWNER role correctly', () => {
-      const context = createContext('OWNER');
+      // MANAGER has access to manager+ routes
+      expect(hasRole(createContext('MANAGER'), ownerOnly)).toBe(false);
+      expect(hasRole(createContext('MANAGER'), managerAndAbove)).toBe(true);
+      expect(hasRole(createContext('MANAGER'), allStaff)).toBe(true);
 
-      expect(hasRole(context, ['OWNER'])).toBe(true);
-      expect(hasRole(context, ['OWNER', 'MANAGER', 'STAFF'])).toBe(true);
-    });
-
-    test('should handle custom roles', () => {
-      const context = createContext('CUSTOM_ROLE');
-
-      expect(hasRole(context, ['CUSTOM_ROLE'])).toBe(true);
-      expect(hasRole(context, ['OTHER_ROLE'])).toBe(false);
-    });
-
-    test('should handle whitespace in roles', () => {
-      const context = createContext('OWNER');
-
-      // Exact match required - whitespace matters
-      expect(hasRole(context, [' OWNER'])).toBe(false);
-      expect(hasRole(context, ['OWNER '])).toBe(false);
-      expect(hasRole(context, [' OWNER '])).toBe(false);
+      // STAFF only has access to all-staff routes
+      expect(hasRole(createContext('STAFF'), ownerOnly)).toBe(false);
+      expect(hasRole(createContext('STAFF'), managerAndAbove)).toBe(false);
+      expect(hasRole(createContext('STAFF'), allStaff)).toBe(true);
     });
   });
 
-  describe('TenantContext interface', () => {
-    test('should have all required fields', () => {
-      const context: TenantContext = {
-        tenantId: 'tenant-id',
-        tenantSlug: 'tenant-slug',
-        userId: 'user-id',
-        userRole: 'OWNER',
+  describe('getTenantContext', () => {
+    test('should return context from headers when all headers present', async () => {
+      mockHeadersData = {
+        'x-tenant-id': 'tenant-123',
+        'x-tenant-slug': 'demo-restaurant',
+        'x-user-id': 'user-456',
+        'x-user-role': 'OWNER',
       };
 
-      expect(context.tenantId).toBe('tenant-id');
-      expect(context.tenantSlug).toBe('tenant-slug');
-      expect(context.userId).toBe('user-id');
-      expect(context.userRole).toBe('OWNER');
+      const context = await getTenantContext();
+
+      expect(context).toEqual({
+        tenantId: 'tenant-123',
+        tenantSlug: 'demo-restaurant',
+        userId: 'user-456',
+        userRole: 'OWNER',
+      });
+    });
+
+    test('should return null when headers are missing', async () => {
+      mockHeadersData = {
+        'x-tenant-id': 'tenant-123',
+        // Missing other headers
+      };
+
+      const context = await getTenantContext();
+      expect(context).toBeNull();
+    });
+
+    test('should fallback to session when headers missing', async () => {
+      mockHeadersData = {};
+      mockSessionData = {
+        user: {
+          id: 'user-789',
+          tenantId: 'tenant-abc',
+          tenantSlug: 'other-restaurant',
+          role: 'MANAGER',
+        },
+      };
+
+      const context = await getTenantContext();
+
+      expect(context).toEqual({
+        tenantId: 'tenant-abc',
+        tenantSlug: 'other-restaurant',
+        userId: 'user-789',
+        userRole: 'MANAGER',
+      });
+    });
+
+    test('should return null when no headers and no session', async () => {
+      mockHeadersData = {};
+      mockSessionData = null;
+
+      const context = await getTenantContext();
+      expect(context).toBeNull();
+    });
+
+    test('should return null when session exists but no user', async () => {
+      mockHeadersData = {};
+      mockSessionData = {};
+
+      const context = await getTenantContext();
+      expect(context).toBeNull();
     });
   });
 
-  describe('Role hierarchy documentation', () => {
-    // These tests document the expected role hierarchy in the application
-    // They serve as living documentation for the role system
+  describe('requireTenantContext', () => {
+    test('should return context when authenticated', async () => {
+      mockHeadersData = {
+        'x-tenant-id': 'tenant-123',
+        'x-tenant-slug': 'demo-restaurant',
+        'x-user-id': 'user-456',
+        'x-user-role': 'OWNER',
+      };
 
-    const createContext = (role: string): TenantContext => ({
-      tenantId: 'tenant-123',
-      tenantSlug: 'demo-restaurant',
-      userId: 'user-456',
-      userRole: role,
+      const context = await requireTenantContext();
+
+      expect(context.tenantId).toBe('tenant-123');
     });
 
-    test('OWNER should have access to owner-only operations', () => {
-      const context = createContext('OWNER');
-      const ownerOnlyRoles = ['OWNER'];
+    test('should throw when not authenticated', async () => {
+      mockHeadersData = {};
+      mockSessionData = null;
 
-      expect(hasRole(context, ownerOnlyRoles)).toBe(true);
+      await expect(requireTenantContext()).rejects.toThrow(
+        'Unauthorized: No tenant context available'
+      );
+    });
+  });
+
+  describe('requireRole', () => {
+    test('should return context when user has required role', async () => {
+      mockHeadersData = {
+        'x-tenant-id': 'tenant-123',
+        'x-tenant-slug': 'demo-restaurant',
+        'x-user-id': 'user-456',
+        'x-user-role': 'OWNER',
+      };
+
+      const context = await requireRole(['OWNER', 'MANAGER']);
+
+      expect(context.userRole).toBe('OWNER');
     });
 
-    test('MANAGER should have access to manager operations', () => {
-      const context = createContext('MANAGER');
-      const managerRoles = ['OWNER', 'MANAGER'];
+    test('should throw when user lacks required role', async () => {
+      mockHeadersData = {
+        'x-tenant-id': 'tenant-123',
+        'x-tenant-slug': 'demo-restaurant',
+        'x-user-id': 'user-456',
+        'x-user-role': 'STAFF',
+      };
 
-      expect(hasRole(context, managerRoles)).toBe(true);
+      await expect(requireRole(['OWNER', 'MANAGER'])).rejects.toThrow(
+        'Forbidden: Requires one of roles: OWNER, MANAGER'
+      );
     });
 
-    test('STAFF should have access to staff operations', () => {
-      const context = createContext('STAFF');
-      const staffRoles = ['OWNER', 'MANAGER', 'STAFF'];
+    test('should throw unauthorized before checking role if not authenticated', async () => {
+      mockHeadersData = {};
+      mockSessionData = null;
 
-      expect(hasRole(context, staffRoles)).toBe(true);
+      await expect(requireRole(['OWNER'])).rejects.toThrow(
+        'Unauthorized: No tenant context available'
+      );
+    });
+  });
+
+  describe('Security: Header Handling', () => {
+    test('should use header values as-is (middleware responsibility to validate)', async () => {
+      mockHeadersData = {
+        'x-tenant-id': 'any-tenant',
+        'x-tenant-slug': 'any-slug',
+        'x-user-id': 'any-user',
+        'x-user-role': 'OWNER',
+      };
+
+      const context = await getTenantContext();
+
+      // The function trusts headers - middleware must be secure
+      expect(context?.tenantId).toBe('any-tenant');
     });
 
-    test('STAFF should not have access to owner-only operations', () => {
-      const context = createContext('STAFF');
-      const ownerOnlyRoles = ['OWNER'];
+    test('should handle empty string headers as falsy', async () => {
+      mockHeadersData = {
+        'x-tenant-id': '',
+        'x-tenant-slug': 'demo',
+        'x-user-id': 'user',
+        'x-user-role': 'OWNER',
+      };
 
-      expect(hasRole(context, ownerOnlyRoles)).toBe(false);
-    });
+      const context = await getTenantContext();
 
-    test('STAFF should not have access to manager operations', () => {
-      const context = createContext('STAFF');
-      const managerRoles = ['OWNER', 'MANAGER'];
-
-      expect(hasRole(context, managerRoles)).toBe(false);
+      // Empty string is falsy, should fall through to session
+      expect(context).toBeNull();
     });
   });
 });
-
-// Note: The following functions require Next.js runtime and should be tested
-// in integration tests with API routes:
-//
-// - getTenantContext() - requires headers() from next/headers
-// - requireTenantContext() - requires headers() and auth()
-// - requireRole() - requires requireTenantContext()
-//
-// These will be tested as part of Phase 2 (API Route Tests) where the full
-// Next.js request context is available.

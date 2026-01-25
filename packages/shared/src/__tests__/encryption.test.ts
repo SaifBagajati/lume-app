@@ -120,4 +120,50 @@ describe('Encryption Utilities', () => {
       }
     });
   });
+
+  describe('key validation', () => {
+    test('should throw if encryption key is not set', () => {
+      const savedKey = process.env.POS_ENCRYPTION_KEY;
+      const savedLegacyKey = process.env.SQUARE_ENCRYPTION_KEY;
+      delete process.env.POS_ENCRYPTION_KEY;
+      delete process.env.SQUARE_ENCRYPTION_KEY;
+
+      try {
+        expect(() => encryptToken('test')).toThrow(
+          'POS_ENCRYPTION_KEY environment variable is not set'
+        );
+      } finally {
+        process.env.POS_ENCRYPTION_KEY = savedKey;
+        if (savedLegacyKey) process.env.SQUARE_ENCRYPTION_KEY = savedLegacyKey;
+      }
+    });
+
+    test('should throw if encryption key is wrong length', () => {
+      const savedKey = process.env.POS_ENCRYPTION_KEY;
+      process.env.POS_ENCRYPTION_KEY = 'too-short';
+
+      try {
+        expect(() => encryptToken('test')).toThrow(
+          'POS_ENCRYPTION_KEY must be exactly 32 characters'
+        );
+      } finally {
+        process.env.POS_ENCRYPTION_KEY = savedKey;
+      }
+    });
+
+    test('should accept legacy SQUARE_ENCRYPTION_KEY', () => {
+      const savedPosKey = process.env.POS_ENCRYPTION_KEY;
+      delete process.env.POS_ENCRYPTION_KEY;
+      process.env.SQUARE_ENCRYPTION_KEY = 'YOGQLOY8aq1GSosunoKeX7zkOkbGnbF8';
+
+      try {
+        const encrypted = encryptToken('test');
+        const decrypted = decryptToken(encrypted);
+        expect(decrypted).toBe('test');
+      } finally {
+        process.env.POS_ENCRYPTION_KEY = savedPosKey;
+        delete process.env.SQUARE_ENCRYPTION_KEY;
+      }
+    });
+  });
 });
