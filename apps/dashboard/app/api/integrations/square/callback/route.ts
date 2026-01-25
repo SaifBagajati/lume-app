@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma, encryptToken } from '@lume-app/shared';
+import { prisma } from '@lume-app/shared';
+import { encryptToken } from '@lume-app/shared/utils/encryption';
 import { SquareClient, SquareEnvironment } from 'square';
 
 // Force this route to use Node.js runtime (not Edge)

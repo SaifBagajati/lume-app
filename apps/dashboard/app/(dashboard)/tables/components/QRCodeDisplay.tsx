@@ -24,7 +24,7 @@ export function QRCodeDisplay({
   const [isDownloading, setIsDownloading] = useState(false);
 
   // Generate the URL that the QR code will point to
-  const targetUrl = `${process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:3001"}/${tenantSlug}/table/${tableNumber}?qr=${qrCodeData}`;
+  const targetUrl = `${process.env.NEXT_PUBLIC_CUSTOMER_APP_URL || "http://localhost:3000"}/${tenantSlug}/table/${tableNumber}?qr=${qrCodeData}`;
 
   useEffect(() => {
     // Generate QR code as data URL
